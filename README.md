@@ -1,12 +1,10 @@
 # Duellpfad
 
-Ein Kartenduell-Roguelike für den Browser, inspiriert von Pokelike. Die Duellregeln orientieren sich an der klassischen Ära der Sammelkartenspiele (Tributbeschwörung, Fusion, Ritual, Flipp-Effekte, gesetzte Fallen). Alle Karten, Namen und Duellanten sind Eigenkreationen.
+Ein Monster-Roguelike für den Browser mit **Autokämpfen nach dem Prinzip von Pokelike**. Die Monster, Zauber- und Fallenkarten sind Eigenkreationen im Stil klassischer Sammelkartenspiele.
 
 ## Spielen
 
 `index.html` im Browser öffnen. Es braucht keinen Build-Schritt und keine Abhängigkeiten. Alternativ per GitHub Pages veröffentlichen (Settings → Pages → Branch `main`, Ordner `/`).
-
-Lokal mit Server:
 
 ```bash
 python3 -m http.server 8000
@@ -14,33 +12,33 @@ python3 -m http.server 8000
 
 ## Ablauf
 
-1. Eines von drei Starterdecks wählen: **Drachenglut**, **Klingenwacht** oder **Nebelzirkel**.
-2. Über eine verzweigte Karte zur Arena ziehen. Unterwegs gibt es Duelle, Elite-Duelle, Läden, Rastplätze, Booster und Ereignisse.
-3. Acht Arenaleiter besiegen, danach im Finale den Großmeister.
-4. Die LP bleiben zwischen den Duellen erhalten. Eine Niederlage beendet den Lauf.
+1. Einen von drei Startern wählen: Glutwelpe (Feuer), Gezeitenschlange (Wasser) oder Klingentänzer (Erde).
+2. Über eine verzweigte Karte zur Arena ziehen:
+   - **Duell / Elite:** Autokampf gegen ein Team. Ein Sieg bringt Erfahrung und ein Item, Elite zusätzlich einen Talisman.
+   - **Begegnung:** Eines von drei wilden Monstern schließt sich an. Ab 6 Monstern geht es in die Box.
+   - **Item:** Zauber- und Fallenkarten sind tragbare Items.
+   - **Rast:** heilt alles. **Tausch:** Monster gegen ein meist selteneres abgeben. **Ereignis:** zufällige Entscheidungen.
+3. Acht Arenaleiter besiegen, danach den Großmeister. Wird dein ganzes Team besiegt, endet der Lauf.
 
-Der Fortschritt wird im `localStorage` des Browsers gespeichert.
+## Autokampf
 
-## Duellregeln (Kurzfassung)
-
-- 5 Monster- und 5 Zauber-/Fallenzonen, 5 Startkarten, Handlimit 6.
-- Eine Normalbeschwörung pro Zug. Stufe 5–6 braucht 1 Tribut, Stufe 7 und höher 2.
-- Kampf mit ATK und DEF nach klassischen Regeln, inklusive Durchschlagsschaden.
-- Fallen werden gesetzt und ab dem nächsten Zug bei ihrem Auslöser angeboten.
-- Verschmelzung (Extra-Deck) und Ritualzauber.
+- Das jeweils vorderste kampffähige Monster beider Teams tritt an. Das schnellere (Initiative) greift zuerst an. Ist eines besiegt, rückt das nächste nach.
+- Schaden ergibt sich aus ATK gegen DEF, dazu kommen Volltreffer und Typvorteile (×1,4 / ×0,75): Feuer › Wind › Erde › Wasser › Feuer, Licht ↔ Finsternis.
+- Effektmonster haben Fähigkeiten beim Betreten des Kampfes, beim Besiegtwerden oder dauerhaft (Durchschlag, Doppelschlag, Zäh …).
+- KP bleiben zwischen Kämpfen erhalten. Nach einem Sieg heilen kampffähige Monster 20 %.
+- Stufenaufstiege, Entwicklungen auf festen Stufen, **Verschmelzung** zweier passender Monster und **Ritualzauber** als Verwandlung.
+- Der Kampf wird komplett vorausberechnet und dann mit 1×, 2× oder 4× abgespielt, oder übersprungen.
 
 ## Struktur
 
 | Datei | Inhalt |
 |---|---|
-| `js/data.js` | Karten, Starterdecks, Arenaleiter, Talismane |
+| `js/data.js` | Karten, Entwicklungen, Typen, Item-Texte, Arenaleiter, Talismane |
 | `js/ui.js` | Kartendarstellung, Modale, Helfer |
-| `js/duel.js` | Duell-Engine, KI und Duell-Oberfläche |
-| `js/run.js` | Karte, Knoten, Belohnungen, Laden, Ereignisse, Speichern |
+| `js/battle.js` | Werteberechnung, Kampfsimulation und Kampfanzeige |
+| `js/run.js` | Karte, Knoten, Team-Verwaltung, Erfahrung, Speichern |
 | `css/style.css` | Gestaltung |
-
-Neue Karten lassen sich in `js/data.js` mit `M(...)` (Monster), `F(...)` (Fusion), `R(...)` (Ritual), `S(...)` (Zauber) und `T(...)` (Falle) ergänzen.
 
 ## Testmodus
 
-`index.html?auto&fast` lässt die KI deine Duelle im Schnelldurchlauf spielen. Das ist praktisch für Balancing-Tests.
+`index.html?auto` überspringt Kampfanimationen und Dialoge. Das ist praktisch für automatisierte Balancing-Tests.

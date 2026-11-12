@@ -1,8 +1,8 @@
 /* =========================================================
    Duellpfad – Kartendaten, Duellanten, Talismane
-   Alle Karten sind Eigenkreationen. Regelwerk im Stil der
-   klassischen Ära: Tributbeschwörung, Fusion, Ritual,
-   Flipp-Effekte, gesetzte Fallen.
+   Alle Karten sind Eigenkreationen. Kampfsystem: Autokampf
+   im Stil von Pokelike (Team, Stufen, Typvorteile, Items).
+   Zauber- und Fallenkarten dienen als Items.
    ========================================================= */
 
 const CARDS = {};
@@ -165,118 +165,127 @@ T('t_pit', 'Fallgrube', 'C', 'summon', 'pit', 1000);
 T('t_pit2', 'Bodenloser Abgrund', 'R', 'summon', 'pit', 1500);
 T('t_revive', 'Ruf der Gefallenen', 'R', 'manual', 'revive');
 
-/* ---------- Texte ---------- */
+/* ---------- Attribute & Typvorteile ----------
+   Kreislauf: FEUER > WIND > ERDE > WASSER > FEUER
+   LICHT und FINSTERNIS sind gegeneinander sehr effektiv. */
 const ATTR_COLORS = {
   LICHT: ['#f3e3a1', '#c9a640'], FINSTERNIS: ['#6d4f8f', '#2a1d3d'], FEUER: ['#f08a4b', '#a33221'],
   WASSER: ['#69b6e0', '#1e5a8c'], ERDE: ['#b59a6a', '#5e4a2c'], WIND: ['#9fd8a8', '#3d7a52'],
 };
+const BEATS = { FEUER: 'WIND', WIND: 'ERDE', ERDE: 'WASSER', WASSER: 'FEUER' };
+function typeMult(a, d) {
+  if ((a === "LICHT" && d === "FINSTERNIS") || (a === "FINSTERNIS" && d === "LICHT")) return 1.4;
+  if (BEATS[a] === d) return 1.4;
+  if (BEATS[d] === a) return 0.75;
+  return 1;
+}
 
+/* ---------- Entwicklungen (Stufe) ---------- */
+const EVOS = {
+  d1: ['d4', 16], d4: ['d6', 32], d2: ['d5', 28], d3: ['d6', 34], d9: ['d7', 44], d8: ['d5', 30],
+  w2: ['w8', 18], w8: ['w5', 34], w3: ['w7', 14], w6: ['w1', 16], w4: ['w8', 24],
+  k3: ['k8', 18], k8: ['k10', 36], k1: ['k4', 12], k4: ['k9', 30], k11: ['k6', 14], k6: ['k8', 26], k2: ['k9', 32],
+  h1: ['h3', 14], h3: ['h7', 38], h9: ['h5', 18], h5: ['h6', 34], h8: ['h4', 16], h2: ['h6', 32],
+  f2: ['f1', 12], f1: ['f4', 24], f4: ['f5', 36], f6: ['f3', 14], f3: ['f7', 40],
+  z1: ['z2', 12], z2: ['z6', 28], z4: ['z5', 30], z5: ['z7', 44], z3: ['z6', 26],
+  m2: ['m1', 12], m1: ['m5', 28], m3: ['m6', 32], m4: ['m7', 42],
+  p1: ['p2', 12], p2: ['p5', 28], p5: ['p6', 40], p3: ['p5', 30], p4: ['p6', 36],
+  l1: ['l2', 12], l2: ['l4', 26], l4: ['l6', 42], l3: ['l5', 34],
+  k5: ['k8', 24], h4: ['h7', 40], w7: ['w5', 36], k7: ['k10', 40],
+};
+
+/* ---------- Fähigkeitstexte (Autokampf) ---------- */
 function fxText(fx) {
   if (!fx) return '';
-  const pre = { summon: 'Wenn diese Karte beschworen wird: ', flip: 'FLIPP: ', destroyed: 'Wenn diese Karte zerstört wird: ', static: '' }[fx.on];
+  const on = fx.on === 'destroyed' ? 'Wenn besiegt: ' : fx.on === 'static' ? '' : 'Beim Betreten des Kampfes: ';
   let t = '';
   switch (fx.do) {
-    case 'burn': t = `Füge dem Gegner ${fx.n} Schaden zu.`; break;
-    case 'heal': t = `Du erhältst ${fx.n} LP.`; break;
-    case 'drain': t = `Füge dem Gegner ${fx.n} Schaden zu, du erhältst ${fx.n} LP.`; break;
-    case 'draw': t = fx.n === 1 ? 'Ziehe 1 Karte.' : `Ziehe ${fx.n} Karten.`; break;
-    case 'destroyMon': t = 'Zerstöre 1 Monster des Gegners.'; break;
-    case 'destroyST': t = 'Zerstöre 1 Zauber- oder Fallenkarte des Gegners.'; break;
-    case 'destroyAllST': t = 'Zerstöre alle Zauber- und Fallenkarten des Gegners.'; break;
-    case 'destroyAllMon': t = 'Zerstöre alle Monster des Gegners.'; break;
-    case 'weakenAll': t = `Alle Monster des Gegners verlieren ${fx.n} ATK.`; break;
-    case 'rally': t = `Alle deine anderen Monster erhalten ${fx.n} ATK.`; break;
-    case 'recruit': t = `Beschwöre 1 ${fx.race} (Stufe ${fx.maxLvl} oder niedriger) aus deinem Deck als Spezialbeschwörung.`; break;
-    case 'reviveLow': t = `Beschwöre 1 Monster (Stufe ${fx.maxLvl} oder niedriger) aus deinem Friedhof als Spezialbeschwörung.`; break;
-    case 'pierce': t = 'Greift diese Karte ein Monster in Verteidigungsposition an, erleidet der Gegner Durchschlagsschaden.'; break;
-    case 'direct': t = 'Diese Karte kann direkt angreifen.'; break;
-    case 'double': t = 'Diese Karte kann zweimal pro Kampfphase angreifen.'; break;
-    case 'indestructible': t = 'Diese Karte kann nicht durch Kampf zerstört werden.'; break;
+    case 'burn': t = fx.on === 'destroyed' ? `Der Angreifer erleidet ${fx.n} Effektschaden.` : `Der Gegner erleidet ${fx.n} Effektschaden.`; break;
+    case 'heal': t = fx.on === 'destroyed' ? `Das nächste Monster deines Teams heilt ${fx.n} KP.` : `Dein am stärksten verletztes Monster heilt ${fx.n} KP.`; break;
+    case 'drain': t = `Der Gegner erleidet ${fx.n} Effektschaden, dieses Monster heilt ${fx.n} KP.`; break;
+    case 'draw': t = fx.on === 'destroyed' ? 'Alle deine Monster heilen 10 % ihrer KP.' : `Erhält +${fx.n * 10} % ATK für diesen Kampf.`; break;
+    case 'destroyMon': t = 'Der Gegner verliert sofort 20 % seiner max. KP.'; break;
+    case 'destroyST': t = 'Das Item des Gegners wird für diesen Kampf wirkungslos.'; break;
+    case 'destroyAllST': t = 'Alle Items des gegnerischen Teams werden für diesen Kampf wirkungslos.'; break;
+    case 'destroyAllMon': t = 'Alle gegnerischen Monster verlieren 15 % ihrer max. KP.'; break;
+    case 'weakenAll': t = `Alle gegnerischen Monster verlieren ${fx.n} ATK für diesen Kampf.`; break;
+    case 'rally': t = `Alle deine Monster erhalten ${fx.n} ATK für diesen Kampf.`; break;
+    case 'recruit': t = 'Das nächste Monster deines Teams erhält +20 % ATK.'; break;
+    case 'reviveLow': t = 'Ein besiegtes Monster deines Teams steht mit 30 % KP wieder auf.'; break;
+    case 'pierce': t = 'Durchschlag: Ignoriert 30 % der gegnerischen DEF.'; break;
+    case 'direct': t = 'Streuangriff: 25 % des Schadens treffen auch das nächste gegnerische Monster.'; break;
+    case 'double': t = 'Doppelschlag: Greift jede Runde ein zweites Mal mit halber Stärke an.'; break;
+    case 'indestructible': t = 'Zäh: Überlebt einmal pro Kampf einen tödlichen Treffer mit 1 KP.'; break;
   }
-  return pre + t;
+  return on + t;
 }
+
+const ITEM_TEXT = {
+  s_burn: 'Beim Betreten: Der Gegner erleidet 600 Effektschaden.',
+  s_burn2: 'Beim Betreten: Der Gegner erleidet 1200 Effektschaden.',
+  s_heal: 'Fallen die KP unter 50 %, heilt der Träger einmalig 30 % seiner KP.',
+  s_heal2: 'Fallen die KP unter 50 %, heilt der Träger einmalig 60 % seiner KP.',
+  s_draw: 'Der Träger erhält 50 % mehr EP.',
+  s_destroy: 'Der erste Angriff des Trägers ist immer ein Volltreffer.',
+  s_st: 'Beim Betreten: Das Item des Gegners wird wirkungslos.',
+  s_allst: 'Beim Betreten: Alle gegnerischen Items werden wirkungslos.',
+  s_allmon: 'Beim Betreten: Alle gegnerischen Monster verlieren 15 % ihrer max. KP.',
+  s_equip: '+15 % ATK.',
+  s_equip2: '+25 % ATK.',
+  s_rally: '+10 % ATK und +10 % DEF.',
+  s_weaken: 'Beim Betreten: Der Gegner verliert 20 % ATK.',
+  s_revive: 'Wird der Träger besiegt, steht er einmalig mit 50 % KP wieder auf.',
+  s_cage: 'Der Träger handelt immer zuerst.',
+  t_negate: 'Blockt den ersten Treffer vollständig.',
+  t_destroyAtk: 'Wird der Träger besiegt, verliert der Angreifer 30 % seiner max. KP.',
+  t_mirror: 'Wirft 25 % jedes erlittenen Schadens zurück.',
+  t_reflect: 'Den ersten Treffer halbiert der Träger und wirft ihn voll zurück.',
+  t_burn: 'Wird der Träger getroffen, erleidet der Angreifer 400 Effektschaden.',
+  t_pit: 'Betritt ein Gegner den Kampf gegen den Träger, verliert er 15 % seiner max. KP.',
+  t_pit2: 'Betritt ein Gegner den Kampf gegen den Träger, verliert er 25 % seiner max. KP.',
+  t_revive: 'Wird der Träger besiegt, steht er einmalig mit 50 % KP wieder auf.',
+  s_fusion: 'Verbrauchbar: Verschmilzt zwei passende Monster deines Teams zu einem Fusionsmonster.',
+  s_rit1: 'Verbrauchbar: Verwandelt ein Monster (ab Stufe 15) in „Ritter der Morgenröte“.',
+  s_rit2: 'Verbrauchbar: Verwandelt ein Monster (ab Stufe 25) in „Dämonenfürst Xar“.',
+  s_rit3: 'Verbrauchbar: Verwandelt ein Monster (ab Stufe 20) in „Drachenpriester Valdur“.',
+};
+const RITUAL_MIN = { s_rit1: 15, s_rit2: 25, s_rit3: 20 };
+const isConsumable = id => id === 's_fusion' || CARDS[id].sp === 'ritual';
 
 function matText(m) { return m.id ? `„${CARDS[m.id].name}“` : (m.race || m.attr); }
 
 function cardText(c) {
   if (c.type === 'monster') {
-    let parts = [];
-    if (c.kind === 'fusion') parts.push(c.mats.map(matText).join(' + '));
-    if (c.kind === 'ritual') parts.push(`Wird mit „${CARDS[c.ritualSpell].name}“ als Ritualbeschwörung beschworen.`);
+    const parts = [];
+    if (c.kind === 'fusion') parts.push('Fusion aus ' + c.mats.map(matText).join(' + ') + '.');
+    if (c.kind === 'ritual') parts.push(`Entsteht durch „${CARDS[c.ritualSpell].name}“.`);
     if (c.fx) parts.push(fxText(c.fx));
-    if (!parts.length) parts.push(c.flavor || 'Ein gewöhnliches Monster.');
-    return parts.join(' ');
+    if (EVOS[c.id]) parts.push(`Entwickelt sich ab Stufe ${EVOS[c.id][1]} zu „${CARDS[EVOS[c.id][0]].name}“.`);
+    if (!c.fx && c.flavor) parts.push(c.flavor);
+    return parts.join(' ') || 'Ein gewöhnliches Monster.';
   }
-  if (c.type === 'spell') {
-    switch (c.sp) {
-      case 'burn': return `Füge dem Gegner ${c.n} Schaden zu.`;
-      case 'heal': return `Du erhältst ${c.n} LP.`;
-      case 'draw': return `Ziehe ${c.n} Karten.`;
-      case 'destroyMon': return 'Wähle 1 Monster des Gegners und zerstöre es.';
-      case 'destroyST': return 'Wähle 1 Zauber- oder Fallenkarte des Gegners und zerstöre sie.';
-      case 'destroyAllST': return 'Zerstöre alle Zauber- und Fallenkarten des Gegners.';
-      case 'destroyAllMon': return 'Zerstöre alle Monster des Gegners.';
-      case 'equip': return `Ein Monster, das du kontrollierst, erhält dauerhaft ${c.n} ATK.`;
-      case 'rallyTemp': return `Alle deine Monster erhalten bis zum Ende dieses Spielzugs ${c.n} ATK.`;
-      case 'weakenAll': return `Alle Monster des Gegners verlieren dauerhaft ${c.n} ATK.`;
-      case 'revive': return 'Wähle 1 Monster in deinem Friedhof und beschwöre es als Spezialbeschwörung.';
-      case 'cage': return `Dein Gegner kann während seiner nächsten ${c.n} Spielzüge nicht angreifen.`;
-      case 'fusion': return 'Lege Fusionsmaterial-Monster von deiner Hand oder deiner Spielfeldseite auf den Friedhof und beschwöre das passende Fusionsmonster aus deinem Extra-Deck.';
-      case 'ritual': return `Biete Monster von Hand oder Feld als Tribut an, deren Stufen zusammen mindestens ${CARDS[c.ritual].lvl} ergeben, und beschwöre „${CARDS[c.ritual].name}“ von deiner Hand.`;
-    }
-  }
-  if (c.type === 'trap') {
-    const when = { attack: 'Wenn ein Monster deines Gegners angreift: ', summon: 'Wenn dein Gegner ein Monster beschwört: ', manual: '' }[c.trig];
-    switch (c.eff) {
-      case 'negate': return when + 'Annulliere den Angriff.';
-      case 'destroyAtk': return when + 'Zerstöre das angreifende Monster.';
-      case 'mirror': return when + 'Zerstöre alle Monster in Angriffsposition, die dein Gegner kontrolliert.';
-      case 'reflect': return when + 'Annulliere den Angriff und füge dem Gegner Schaden in Höhe der halben ATK des Angreifers zu.';
-      case 'burn': return when + `Füge dem Gegner ${c.n} Schaden zu.`;
-      case 'pit': return when + `Hat es ${c.n} oder mehr ATK, zerstöre es.`;
-      case 'revive': return 'Wähle 1 Monster in deinem Friedhof und beschwöre es in Angriffsposition als Spezialbeschwörung.';
-    }
-  }
-  return '';
+  return ITEM_TEXT[c.id] || '';
 }
 
-/* ---------- Starter-Decks ---------- */
+/* ---------- Starter ---------- */
 const STARTERS = [
-  {
-    id: 'glut', name: 'Drachenglut', tag: 'Angriff', ace: 'd5',
-    blurb: 'Drachen und Pyros mit hoher ATK und Schadenseffekten. Schnell und offensiv.',
-    deck: ['d1', 'd1', 'd2', 'd2', 'd3', 'd9', 'd9', 'd8', 'p1', 'p2', 'p2', 'd4', 'd5',
-      's_burn', 's_equip', 's_fusion', 's_heal', 't_negate', 't_pit', 't_burn'],
-    extra: ['x2'],
-  },
-  {
-    id: 'klinge', name: 'Klingenwacht', tag: 'Ausgewogen', ace: 'k9',
-    blurb: 'Krieger mit soliden Werten, gestützt von Feen. Stark in Angriff und Verteidigung.',
-    deck: ['k1', 'k1', 'k2', 'k2', 'k3', 'k3', 'k4', 'k11', 'k5', 'l2', 'l3', 'k7', 'k9',
-      's_equip', 's_rally', 's_fusion', 't_negate', 't_destroyAtk', 't_pit', 't_burn'],
-    extra: ['x3'],
-  },
-  {
-    id: 'nebel', name: 'Nebelzirkel', tag: 'Kontrolle', ace: 'h5',
-    blurb: 'Hexer und Zombies mit Flipp-Effekten, Kartenvorteil und Wiederbelebung.',
-    deck: ['h1', 'h1', 'h2', 'h2', 'h9', 'h9', 'h4', 'h8', 'z1', 'z2', 'z4', 'h5', 'z6',
-      's_st', 's_fusion', 's_burn', 't_negate', 't_pit', 't_reflect', 't_burn'],
-    extra: ['x4'],
-  },
+  { id: 'd1', tag: 'Feuer', blurb: 'Ein hitzköpfiger Drachenwelpe. Stark gegen Wind, schwach gegen Wasser.' },
+  { id: 'w2', tag: 'Wasser', blurb: 'Eine flinke Seeschlange. Stark gegen Feuer, schwach gegen Erde.' },
+  { id: 'k3', tag: 'Erde', blurb: 'Ein schneller Schwertkämpfer. Stark gegen Wasser, schwach gegen Wind.' },
 ];
 
-/* ---------- Arenaleiter ---------- */
+/* ---------- Arenaleiter (Team, Ass zuletzt) ---------- */
 const LEADERS = [
-  { name: 'Bruno Kessler', title: 'Hüter der Steinarena', themes: ['krieger'], ace: 'k8', signature: ['k8', 'k9', 's_rally'] },
-  { name: 'Mira Flint', title: 'Herrin der Gezeiten', themes: ['wasser'], ace: 'w5', signature: ['w5', 'w8', 's_weaken'] },
-  { name: 'Talon Reyes', title: 'Sturmflieger', themes: ['wind'], ace: 'f5', signature: ['f4', 'f5', 'f3'] },
-  { name: 'Oskar Grimm', title: 'Totengräber', themes: ['zombie'], ace: 'z7', signature: ['z5', 'z7', 's_revive'] },
-  { name: 'Selene Vaar', title: 'Sternenmagierin', themes: ['hexer', 'licht'], ace: 'h6', signature: ['h6', 'l5', 's_draw'] },
-  { name: 'Ignaz Brand', title: 'Flammenschmied', themes: ['feuer'], ace: 'p6', signature: ['p6', 'p5', 's_burn2'] },
-  { name: 'Vera Stahl', title: 'Ingenieurin', themes: ['maschine'], ace: 'm7', signature: ['m6', 'm7', 's_destroy'] },
-  { name: 'Kael Drakon', title: 'Drachenbändiger', themes: ['drache'], ace: 'd7', signature: ['d6', 'd7', 'd7', 's_equip2'] },
+  { name: 'Bruno Kessler', title: 'Hüter der Steinarena', themes: ['krieger'], team: ['k2', 'k7', 'k4'], ace: 'k4', items: { k4: 's_equip' } },
+  { name: 'Mira Flint', title: 'Herrin der Gezeiten', themes: ['wasser'], team: ['w6', 'w7', 'w4', 'w8'], ace: 'w8', items: { w8: 's_heal' } },
+  { name: 'Talon Reyes', title: 'Sturmflieger', themes: ['wind'], team: ['f6', 'f3', 'f1', 'f4'], ace: 'f4', items: { f4: 's_rally' } },
+  { name: 'Oskar Grimm', title: 'Totengräber', themes: ['zombie'], team: ['z3', 'z4', 'z6', 'z5'], ace: 'z5', items: { z5: 's_revive', z6: 't_negate' } },
+  { name: 'Selene Vaar', title: 'Sternenmagierin', themes: ['hexer', 'licht'], team: ['h8', 'l4', 'h5', 'l5', 'h6'], ace: 'h6', items: { h6: 's_heal', l5: 't_mirror' } },
+  { name: 'Ignaz Brand', title: 'Flammenschmied', themes: ['feuer'], team: ['p4', 'p3', 'p5', 'x7', 'p6'], ace: 'p6', items: { p6: 's_burn2', p5: 't_burn' } },
+  { name: 'Vera Stahl', title: 'Ingenieurin', themes: ['maschine'], team: ['m3', 'm4', 'm5', 'x6', 'm6', 'm7'], ace: 'm7', items: { m7: 's_equip2', m6: 't_reflect' } },
+  { name: 'Kael Drakon', title: 'Drachenbändiger', themes: ['drache'], team: ['d8', 'd5', 'x2', 'd6', 'x5', 'd7'], ace: 'd7', items: { d7: 's_equip2', x5: 's_heal2', d6: 's_rally' } },
 ];
-const FINAL_BOSS = { name: 'Großmeister Orrin', title: 'Champion des Pfades', themes: ['hexer', 'drache', 'licht'], ace: 'r2', signature: ['r2', 's_rit2', 'l6', 'd7', 's_allmon', 't_mirror'] };
+const FINAL_BOSS = { name: 'Großmeister Orrin', title: 'Champion des Pfades', themes: ['hexer', 'drache', 'licht'], team: ['l6', 'h7', 'k10', 'r2', 'x13', 'd7'], ace: 'x13', items: { x13: 's_heal2', r2: 't_mirror', l6: 's_revive', d7: 's_equip2', h7: 's_allst', k10: 's_rally' } };
 
 const ARENA_THEMES = ['krieger', 'wasser', 'wind', 'zombie', 'hexer', 'feuer', 'maschine', 'drache'];
 const THEME_LABEL = { krieger: 'Krieger', drache: 'Drachen', hexer: 'Hexer', wasser: 'Wasser', wind: 'Wind', zombie: 'Zombies', maschine: 'Maschinen', feuer: 'Pyro', licht: 'Feen' };
@@ -285,16 +294,16 @@ const DUELIST_NAMES = ['Jonas', 'Lea', 'Malik', 'Ronja', 'Finn', 'Ida', 'Theo', 
 const DUELIST_TITLES = ['Kadett', 'Duellant', 'Herausforderin', 'Kartensammler', 'Turnierneuling', 'Wandernde Duellantin', 'Akademieschüler', 'Strategin'];
 const ELITE_TITLES = ['Turniersieger', 'Elite-Duellantin', 'Veteran', 'Meisterschüler', 'Titelverteidigerin'];
 
-/* ---------- Talismane ---------- */
+/* ---------- Talismane (gelten für dein ganzes Team) ---------- */
 const TALISMANS = {
-  muenze: { name: 'Glücksmünze', text: '+30 % Gold aus Duellen.', price: 110 },
-  hand: { name: 'Vorausschau', text: 'Du startest jedes Duell mit 6 statt 5 Handkarten.', price: 160 },
-  amulett: { name: 'Lebensamulett', text: '+1500 maximale LP (und sofort geheilt).', price: 130 },
-  schleif: { name: 'Schleifstein', text: 'Deine Monster haben +200 ATK.', price: 150 },
-  blut: { name: 'Blutstein', text: 'Nach jedem gewonnenen Duell erhältst du 600 LP.', price: 120 },
-  vorsprung: { name: 'Vorsprung', text: 'Du beginnst jedes Duell als erster Spieler.', price: 100 },
-  brenn: { name: 'Brennglas', text: 'Deine Schadenseffekte verursachen 50 % mehr Schaden.', price: 130 },
-  opfer: { name: 'Opfergabe', text: 'Tributbeschwörungen benötigen 1 Tribut weniger.', price: 220 },
-  herz: { name: 'Zweites Herz', text: 'Einmalig: Fallen deine LP im Lauf auf 0, stehst du mit 50 % wieder auf.', price: 180 },
-  ruestung: { name: 'Bastionsplatte', text: 'Deine Monster haben +300 DEF.', price: 90 },
+  schleif: { name: 'Schleifstein', text: 'Deine Monster haben +10 % ATK.' },
+  ruestung: { name: 'Bastionsplatte', text: 'Deine Monster haben +10 % DEF.' },
+  amulett: { name: 'Lebensamulett', text: 'Deine Monster haben +15 % max. KP.' },
+  lern: { name: 'Lernfibel', text: 'Deine Monster erhalten 30 % mehr EP.' },
+  blut: { name: 'Blutstein', text: 'Nach jedem Sieg heilen deine Monster 40 % statt 20 % ihrer KP.' },
+  brenn: { name: 'Brennglas', text: 'Effektschaden deiner Monster ist 50 % höher.' },
+  vorsprung: { name: 'Windfeder', text: 'Deine Monster sind schneller (+40 Initiative).' },
+  krit: { name: 'Adlerauge', text: '+10 % Volltrefferchance für dein Team.' },
+  herz: { name: 'Zweites Herz', text: 'Einmalig: Wird dein Team besiegt, stehen alle Monster mit 50 % KP wieder auf und du ziehst weiter.' },
+  sammler: { name: 'Fangnetz', text: 'Bei Begegnungen stehen 4 statt 3 Monster zur Wahl.' },
 };
